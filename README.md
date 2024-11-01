@@ -106,7 +106,7 @@ center_z = -5.0
 size_x = 20.0
 size_y = 20.0
 size_z = 20.0
-
+thread = 8000
 exhaustiveness = 8
 num_modes = 9
 ```
@@ -114,12 +114,12 @@ num_modes = 9
 Modify the values according to your protein's binding site.
 **Note** : You must provide your own configuration file and define the search space based on your specific protein pocket and structure file, as automating this step is not straightforward.
 ## Usage 
-Master Script: `run_pipeline.sh`The `run_pipeline.sh` script orchestrates the entire pipeline.
+Master Script: `master.sh`The `run_pipeline.sh` script orchestrates the entire pipeline.
 #### Usage 
 
 
 ```bash
-bash run_pipeline.sh -c CONFIG_FILE -s SMILES_FILE -l LIGAND_PARENT_DIR [OPTIONS]
+bash master.sh -c CONFIG_FILE -s SMILES_FILE -l LIGAND_PARENT_DIR [OPTIONS]
 ```
 
 #### Required Arguments 
