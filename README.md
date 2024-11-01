@@ -15,3 +15,22 @@ By handling complex tasks such as SMILES-to-PDBQT conversions, subdirectory orga
 ### Applications
 
 Created for my own research, but could be potentially useful for others in my lab and outside of it.
+
+
+## SMILES to PDBQT Conversion Script (smiles_to_pdbqt.py)
+
+This script converts a list of SMILES strings from a file into individual PDBQT files using RDKit, with an option to split output files into subdirectories to manage large datasets.
+
+Smiles file must be formatted as:
+ZINCID SMILES
+
+this is the typical way to download from the ZINC database.
+
+### Usage
+
+```bash
+python src/main.py <input_file> <output_dir> [--max_files_per_dir <number>]
+
+### Example
+python src/main.py zinc_smiles.txt output_dir --max_files_per_dir 1000
+
