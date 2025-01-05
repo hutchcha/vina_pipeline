@@ -19,20 +19,31 @@ def plot_histograms(df, output_dir):
         'MolecularWeight', 'HBA', 'HBD', 'TPSA',
         'RotatableBonds', 'DrugScore', 'LogP', 'NumAromaticRings'
     ]
-    
-    for desc in descriptors:
-        if desc not in df.columns:
-            # Skip if the column doesn't exist (just in case)
-            continue
-        
-        plt.figure(figsize=(8, 6))
-        plt.hist(df[desc].dropna(), bins=50, alpha=0.75)
-        plt.title(f"{desc} Distribution")
-        plt.xlabel(desc)
-        plt.ylabel("Count")
-        plt.savefig(os.path.join(output_dir, f"{desc}_histogram.png"))
-        plt.close()
-    print("Histograms saved to:", output_dir)
+
+    # Create a single figure with subplots for all histograms
+    n_descriptors = len(descriptors)
+    n_cols = 3  # Number of columns in the grid
+    n_rows = (n_descriptors + n_cols - 1) // n_cols  # Calculate number of rows
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5 * n_rows), constrained_layout=True)
+    axes = axes.flatten()
+
+    for i, desc in enumerate(descriptors):
+        if desc in df.columns:
+            axes[i].hist(df[desc].dropna(), bins=50, alpha=0.75)
+            axes[i].set_title(f"{desc} Distribution")
+            axes[i].set_xlabel(desc)
+            axes[i].set_ylabel("Count")
+
+    # Remove empty subplots if the number of descriptors is less than the grid
+    for j in range(i + 1, len(axes)):
+        fig.delaxes(axes[j])
+
+    # Save the combined figure
+    combined_histogram_path = os.path.join(output_dir, "combined_histograms.png")
+    plt.savefig(combined_histogram_path)
+    plt.close()
+    print("Combined histogram saved to:", combined_histogram_path)
 
 def main():
     parser = argparse.ArgumentParser(
