@@ -12,7 +12,7 @@ set -e
 # ----------------------------
 
 # Path to AutoDock Vina GPU executable
-VINA_GPU_EXEC="/mnt/data_SSD/VINA-GPU/Vina-GPU-2.1/AutoDock-Vina-GPU-2.1/AutoDock-Vina-GPU-2-1"
+VINA_GPU_EXEC="/mnt/data_SSD/VINA-GPU/Vina-GPU-2.1/AutoDock-Vina-GPU-2-1"
 
 # Log file for recording progress and errors
 LOG_FILE="serial_vina_gpu_with_aggregation.log"
@@ -114,6 +114,13 @@ for ligand_dir in "${ligand_dirs[@]}"; do
             ((current_dir++))
             continue
         fi
+    fi
+
+    # Check if the directory already contains output files
+    if find "$output_dir" -type f -name "*_out.pdbqt" | grep -q .; then
+        echo "Skipping directory $dir_name: Output files already exist in $output_dir." | tee -a "$LOG_FILE"
+        ((current_dir++))
+        continue
     fi
 
     echo "Processing directory $current_dir of $total_dirs: $dir_name" | tee -a "$LOG_FILE"

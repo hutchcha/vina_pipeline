@@ -1,137 +1,140 @@
 #!/bin/bash
 
-# Exit immediately if a command exits with a non-zero status
+# ============================================
+# Master Script for Virtual Screening Pipeline
+# ============================================
+
+# Exit on errors
 set -e
 
 # ----------------------------
-# Default Configuration Parameters
+# Helper Functions
 # ----------------------------
-
-# Required arguments (to be provided by the user)
-CONFIG_FILE=""
-SMILES_FILE=""
-LIGAND_PARENT_DIR=""
-
-# Optional parameters with default values
-OUTPUT_DIR="output_directory"
-AGGREGATE_DIR="aggregate_results"
-SUMMARY_FILE="docking_summary.txt"
-IMAGE_DIR="images"
-FIGURE_FILE="top_hits_figure.png"
-MAX_FILES_PER_DIR=1000
-MOLECULES_PER_DIR=1000
-NUM_WORKERS=$(nproc)
-MAX_MOLECULES=""
-TOP_N=15
-VERBOSE=false
-SINGLE_DIRECTORY=false
-START_FROM_DIR=1
-
-# Help function to display usage information
-show_help() {
-    echo "Usage: bash run_pipeline.sh -c CONFIG_FILE -s SMILES_FILE -l LIGAND_PARENT_DIR [OPTIONS]"
+function print_usage() {
+    echo "Usage: $0 -c CONFIG_FILE -i INPUT_CSV -o OUTPUT_DIR [-s START_FROM_DIR] [--single-dir] [-v]"
     echo ""
     echo "Required Arguments:"
-    echo "  -c CONFIG_FILE             Path to the AutoDock Vina configuration file."
-    echo "  -s SMILES_FILE             Path to the SMILES file with ligand information."
-    echo "  -l LIGAND_PARENT_DIR       Directory to store converted ligands (PDBQT files)."
+    echo "  -c CONFIG_FILE       Path to the VINA-GPU configuration file."
+    echo "  -i INPUT_CSV         Path to the input CSV file containing SMILES and IDs."
+    echo "  -o OUTPUT_DIR        Path to the main output directory."
     echo ""
     echo "Optional Arguments:"
-    echo "  -o OUTPUT_DIR              Directory for docking results (default: 'output_directory')."
-    echo "  -a AGGREGATE_DIR           Directory to store aggregated results (default: 'aggregate_results')."
-    echo "  -f SUMMARY_FILE            Output summary file (default: 'docking_summary.txt')."
-    echo "  -i IMAGE_DIR               Directory for images (default: 'images')."
-    echo "  -g FIGURE_FILE             Combined figure file for top hits (default: 'top_hits_figure.png')."
-    echo "  -m MAX_FILES_PER_DIR       Max files per subdirectory for SMILES conversion (default: 1000)."
-    echo "  -p MOLECULES_PER_DIR       Number of molecules per output subdirectory (default: 1000)."
-    echo "  -w NUM_WORKERS             Number of worker processes for SMILES conversion (default: number of CPU cores)."
-    echo "  -x MAX_MOLECULES           Maximum number of molecules to process (default: all)."
-    echo "  -n TOP_N                   Number of top hits to generate images for (default: 15)."
-    echo "  -v                         Enable verbose output."
-    echo "  -d                         Treat LIGAND_PARENT_DIR as a single directory (no subdirectories)."
-    echo "  -s START_FROM_DIR          Start processing from this directory number (default: 1)."
-    echo "  -h                         Show this help message and exit."
+    echo "  -s START_FROM_DIR    Start processing ligands from this directory index (default: 1)."
+    echo "  --single-dir         Use a single directory instead of splitting ligands into batches."
+    echo "  -v                   Enable verbose mode."
+    echo ""
+    echo "Example:"
+    echo "  $0 -c config.txt -i molecules.csv -o ./screen_output -s 2 --single-dir -v"
 }
 
-# Parse command-line options
-while getopts "c:s:l:o:a:f:i:g:m:p:w:x:n:s:vdh" opt; do
-    case $opt in
-        c) CONFIG_FILE="$OPTARG" ;;
-        s) SMILES_FILE="$OPTARG" ;;
-        l) LIGAND_PARENT_DIR="$OPTARG" ;;
-        o) OUTPUT_DIR="$OPTARG" ;;
-        a) AGGREGATE_DIR="$OPTARG" ;;
-        f) SUMMARY_FILE="$OPTARG" ;;
-        i) IMAGE_DIR="$OPTARG" ;;
-        g) FIGURE_FILE="$OPTARG" ;;
-        m) MAX_FILES_PER_DIR="$OPTARG" ;;
-        p) MOLECULES_PER_DIR="$OPTARG" ;;
-        w) NUM_WORKERS="$OPTARG" ;;
-        x) MAX_MOLECULES="$OPTARG" ;;
-        n) TOP_N="$OPTARG" ;;
-        v) VERBOSE=true ;;
-        d) SINGLE_DIRECTORY=true ;;
-        h) show_help; exit 0 ;;
-        *) show_help; exit 1 ;;
+# ----------------------------
+# Parse Arguments
+# ----------------------------
+START_FROM_DIR=1
+SINGLE_DIR_MODE=false
+VERBOSE=false
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -c) CONFIG_FILE="$2"; shift ;;
+        -i) INPUT_CSV="$2"; shift ;;
+        -o) OUTPUT_DIR="$2"; shift ;;
+        -s) START_FROM_DIR="$2"; shift ;;
+        --single-dir) SINGLE_DIR_MODE=true ;;
+        -v) VERBOSE=true ;;
+        -h|--help) print_usage; exit 0 ;;
+        *) echo "Unknown option: $1"; print_usage; exit 1 ;;
     esac
+    shift
 done
 
-# Check if required arguments are provided
-if [ -z "$CONFIG_FILE" ] || [ -z "$SMILES_FILE" ] || [ -z "$LIGAND_PARENT_DIR" ]; then
+# Validate required arguments
+if [ -z "$CONFIG_FILE" ] || [ -z "$INPUT_CSV" ] || [ -z "$OUTPUT_DIR" ]; then
     echo "Error: Missing required arguments."
-    show_help
+    print_usage
     exit 1
 fi
 
+# Create the output directory if it doesn't exist
+mkdir -p "$OUTPUT_DIR"
+
+# Log file for this pipeline
+LOG_FILE="$OUTPUT_DIR/pipeline.log"
+echo "Virtual Screening Pipeline Log - $(date)" > "$LOG_FILE"
+
 # ----------------------------
-# Step 1: Convert SMILES to PDBQT format with directory splitting
+# Step 1: Convert SMILES to PDBQT
 # ----------------------------
+echo "Step 1: Converting SMILES to PDBQT..." | tee -a "$LOG_FILE"
+PDBQT_OUTPUT_DIR="$OUTPUT_DIR/ligand_pdbqts"
+mkdir -p "$PDBQT_OUTPUT_DIR"
 
-echo "Converting SMILES to PDBQT with molecules per directory limit..."
+SMILES_TO_PDBQT_CMD="python3 smiles_to_pdbqt.py \
+    $INPUT_CSV \
+    $PDBQT_OUTPUT_DIR \
+    --molecules_per_dir 1000"
 
-SMILES_TO_PDBQT_SCRIPT="smiles_to_pdbqt.py"
-
-SMILES_TO_PDBQT_ARGS=("$SMILES_FILE" "$LIGAND_PARENT_DIR" "-n" "$NUM_WORKERS" "--molecules_per_dir" "$MOLECULES_PER_DIR")
-if [ -n "$MAX_MOLECULES" ]; then
-    SMILES_TO_PDBQT_ARGS+=("-m" "$MAX_MOLECULES")
+# Add optional flags
+if $SINGLE_DIR_MODE; then
+    SMILES_TO_PDBQT_CMD+=" --single_dir"
+fi
+if $VERBOSE; then
+    SMILES_TO_PDBQT_CMD+=" -v"
 fi
 
-python "$SMILES_TO_PDBQT_SCRIPT" "${SMILES_TO_PDBQT_ARGS[@]}"
+# Run the SMILES-to-PDBQT script
+echo "Running: $SMILES_TO_PDBQT_CMD" | tee -a "$LOG_FILE"
+eval $SMILES_TO_PDBQT_CMD
 
 # ----------------------------
-# Step 2: Run docking using AutoDock Vina for each ligand batch
+# Step 2: Run VINA-GPU Screening
 # ----------------------------
+echo "Step 2: Running VINA-GPU screening..." | tee -a "$LOG_FILE"
+VINA_OUTPUT_DIR="$OUTPUT_DIR/vina_results"
+AGGREGATE_DIR="$OUTPUT_DIR/aggregated_results"
+mkdir -p "$VINA_OUTPUT_DIR"
+mkdir -p "$AGGREGATE_DIR"
 
-echo "Running virtual screening..."
+RUN_SCREEN_CMD="./run_large_screen.sh \
+    -c $CONFIG_FILE \
+    -l $PDBQT_OUTPUT_DIR \
+    -o $VINA_OUTPUT_DIR \
+    -a $AGGREGATE_DIR \
+    -s $START_FROM_DIR"
 
-RUN_SCREEN_SCRIPT="run_large_screen.sh"
-
-RUN_SCREEN_ARGS=("-c" "$CONFIG_FILE" "-l" "$LIGAND_PARENT_DIR" "-o" "$OUTPUT_DIR" "-a" "$AGGREGATE_DIR" "-s" "$START_FROM_DIR")
-if [ "$SINGLE_DIRECTORY" = true ]; then
-    RUN_SCREEN_ARGS+=("--single-directory")
+# Add optional flags
+if $SINGLE_DIR_MODE; then
+    RUN_SCREEN_CMD+=" --single-directory"
 fi
 
-bash "$RUN_SCREEN_SCRIPT" "${RUN_SCREEN_ARGS[@]}"
+# Run the VINA-GPU screening script
+echo "Running: $RUN_SCREEN_CMD" | tee -a "$LOG_FILE"
+eval $RUN_SCREEN_CMD
 
 # ----------------------------
-# Step 3: Summarize docking results
+# Step 3: Summarize Virtual Screening Results
 # ----------------------------
+echo "Step 3: Summarizing virtual screening results..." | tee -a "$LOG_FILE"
+SUMMARY_CSV="$OUTPUT_DIR/screen_summary.csv"
 
-echo "Summarizing results..."
+SUMMARIZE_CMD="python3 summarize_virtual_screen.py \
+    -c $INPUT_CSV \
+    -d $AGGREGATE_DIR \
+    -g -n 15 \
+    -i $OUTPUT_DIR/images \
+    -f $OUTPUT_DIR/top_hits_figure.png"
 
-SUMMARIZE_SCRIPT="summarize_virtual_screen.py"
-
-SUMMARIZE_ARGS=("-d" "$AGGREGATE_DIR" "-s" "$SMILES_FILE" "-o" "$SUMMARY_FILE" "-n" "$TOP_N" "-i" "$IMAGE_DIR" "-f" "$FIGURE_FILE")
-if [ "$VERBOSE" = true ]; then
-    SUMMARIZE_ARGS+=("-v")
+# Add optional verbosity
+if $VERBOSE; then
+    SUMMARIZE_CMD+=" -v"
 fi
 
-# Enable image generation by default
-SUMMARIZE_ARGS+=("-g")
+# Run the summarization script
+echo "Running: $SUMMARIZE_CMD" | tee -a "$LOG_FILE"
+eval $SUMMARIZE_CMD
 
-python "$SUMMARIZE_SCRIPT" "${SUMMARIZE_ARGS[@]}"
-
-echo "Pipeline complete. Results saved to:"
-echo " - Summary File: $SUMMARY_FILE"
-echo " - Images Directory: $IMAGE_DIR"
-echo " - Combined Figure File: $FIGURE_FILE"
+# ----------------------------
+# Pipeline Complete
+# ----------------------------
+echo "Pipeline completed successfully!" | tee -a "$LOG_FILE"
+echo "Results are in: $OUTPUT_DIR" | tee -a "$LOG_FILE"
