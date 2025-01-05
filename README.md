@@ -23,28 +23,40 @@ This repository contains scripts for a complete virtual screening pipeline using
 - [License](#license)
 - [Acknowledgments](#acknowledgments)
 
-## Prerequisites
+## Prerequisites 
 
 Ensure you have the following installed on your system:
-
-- **Python 3.x**
-- **AutoDock Vina GPU**: Download and install AutoDock Vina with GPU support.
-- **MGLTools**: For ligand preparation (`prepare_ligand4.py` script).
-- **RDKit**: For molecular handling and conversions.
-- **Pillow (PIL)**: For image processing.
-- **Matplotlib**: For plotting images.
-- **tqdm**: For progress bars in the scripts.
-
-## Installation
-
-1. **Clone the Repository**
-
-   ```bash
-   git clone https://github.com/your_username/virtual_screening_pipeline.git
-   cd virtual_screening_pipeline
-```
  
-1. **Install Python Dependencies** Use the provided `requirements.txt` file to install necessary Python packages:
+- **Python 3.x**
+ 
+- **AutoDock Vina GPU** : Download and install AutoDock Vina with GPU support.
+ 
+- **MGLTools** : For ligand preparation (`prepare_ligand4.py` script).
+ 
+- **RDKit** : For molecular handling and conversions.
+ 
+- **Pillow (PIL)** : For image processing.
+ 
+- **Matplotlib** : For plotting images.
+ 
+- **tqdm** : For progress bars in the scripts.
+
+
+---
+
+
+## Installation 
+
+### 1. Clone the Repository 
+
+
+```bash
+git clone https://github.com/your_username/virtual_screening_pipeline.git
+cd virtual_screening_pipeline
+```
+
+### 2. Install Python Dependencies 
+Use the provided `requirements.txt` file to install necessary Python packages:
 
 ```bash
 pip install -r requirements.txt
@@ -58,13 +70,16 @@ matplotlib
 tqdm
 ```
 
+
+---
+
+
 ## Setup 
 
 ### Updating Script Paths 
 
 Before running the pipeline, update the paths in the scripts to match your system:
- 
-- **`smiles_to_pdbqt.py`** :Locate and update the paths to `pythonsh` and `prepare_ligand4.py`:
+`smiles_to_pdbqt.py`** Update the paths to `pythonsh` and `prepare_ligand4.py`:
 
 ```python
 command = [
@@ -74,16 +89,14 @@ command = [
     '-o', pdbqt_filename
 ]
 ```
- 
-- **`run_large_screen.sh`** :
+`run_large_screen.sh`** 
 Update the path to the AutoDock Vina GPU executable:
 
 
 ```bash
 VINA_GPU_EXEC="/path/to/AutoDock-Vina-GPU"
 ```
- 
-- **`summarize_virtual_screen.py`** :
+`summarize_virtual_screen.py`** 
 Update the font path for image annotations:
 
 
@@ -94,6 +107,10 @@ except IOError:
     print("Arial font not found, using default")
     font = ImageFont.load_default()
 ```
+
+
+---
+
 
 ### Preparing the Configuration File 
 Create a configuration file (`conf.txt`) for AutoDock Vina, specifying docking parameters and the search space based on your protein target:
@@ -112,9 +129,13 @@ num_modes = 9
 ```
 
 Modify the values according to your protein's binding site.
-**Note** : You must provide your own configuration file and define the search space based on your specific protein pocket and structure file, as automating this step is not straightforward.
+
+
+---
+
+
 ## Usage 
-Master Script: `master.sh`The `run_pipeline.sh` script orchestrates the entire pipeline.
+Master Script: `master.sh`The `master.sh`**  script automates the entire pipeline, including ligand preparation, docking, and result summarization. It also ensures that previously processed directories are skipped, allowing for smooth resumption of interrupted runs.
 #### Usage 
 
 
@@ -124,43 +145,31 @@ bash master.sh -c CONFIG_FILE -s SMILES_FILE -l LIGAND_PARENT_DIR [OPTIONS]
 
 #### Required Arguments 
  
-- `-c CONFIG_FILE`: Path to the AutoDock Vina configuration file.
+- **`-c CONFIG_FILE`** : Path to the AutoDock Vina configuration file.
  
-- `-s SMILES_FILE`: Path to the SMILES file containing ligand information.
+- **`-s SMILES_FILE`** : Path to the SMILES file containing ligand information.
  
-- `-l LIGAND_PARENT_DIR`: Directory to store converted ligands (PDBQT files).
+- **`-l LIGAND_PARENT_DIR`** : Directory to store converted ligands (PDBQT files).
 
 #### Optional Arguments 
  
-- `-o OUTPUT_DIR`: Directory for docking results (default: `output_directory`).
+- **`-o OUTPUT_DIR`** : Directory for docking results (default: `output_directory`).
  
-- `-a AGGREGATE_DIR`: Directory to store aggregated results (default: `aggregate_results`).
+- **`-a AGGREGATE_DIR`** : Directory to store aggregated results (default: `aggregate_results`).
  
-- `-f SUMMARY_FILE`: Output summary file (default: `docking_summary.txt`).
+- **`-n TOP_N`** : Number of top hits to generate images for (default: 15).
  
-- `-i IMAGE_DIR`: Directory for images (default: `images`).
+- **`-d`** : Treat `LIGAND_PARENT_DIR` as a single directory (no subdirectories).
  
-- `-g FIGURE_FILE`: Combined figure file for top hits (default: `top_hits_figure.png`).
+- **`-s START_FROM_DIR`** : Start processing from this directory number (default: 1).
  
-- `-m MAX_FILES_PER_DIR`: Max files per subdirectory for SMILES conversion (default: 1000).
- 
-- `-p MOLECULES_PER_DIR`: Number of molecules per output subdirectory (default: 1000).
- 
-- `-w NUM_WORKERS`: Number of worker processes for SMILES conversion (default: number of CPU cores).
- 
-- `-x MAX_MOLECULES`: Maximum number of molecules to process (default: all).
- 
-- `-n TOP_N`: Number of top hits to generate images for (default: 15).
- 
-- `-v`: Enable verbose output.
- 
-- `-d`: Treat `LIGAND_PARENT_DIR` as a single directory (no subdirectories).
- 
-- `-s START_FROM_DIR`: Start processing from this directory number (default: 1).
- 
-- `-h`: Show help message and exit.
+- **`-v`** : Enable verbose output.
 
-### Scripts 
+
+---
+
+
+### Individual Scripts 
 `smiles_to_pdbqt.py`
 Converts SMILES strings to PDBQT files, splitting outputs into subdirectories.
 **Usage** :
@@ -169,22 +178,30 @@ Converts SMILES strings to PDBQT files, splitting outputs into subdirectories.
 python smiles_to_pdbqt.py INPUT_FILE OUTPUT_DIR [OPTIONS]
 ```
 **Options** : 
-- `-n`, `--num_workers`: Number of worker processes.
+- **`-n`** , ****`-n`** , `--num_workers`** : Number of worker processes.
  
-- `-m`, `--max_molecules`: Maximum number of molecules to process.
+- **`-m`** , ****`-m`** , `--max_molecules`** : Maximum number of molecules to process.
  
-- `--molecules_per_dir`: Number of molecules per subdirectory.
+- **`--molecules_per_dir`** : Number of molecules per subdirectory.
+
+
+---
+
 `run_large_screen.sh`
-Runs AutoDock Vina docking on batches of ligands, aggregating results.
+Runs AutoDock Vina docking on batches of ligands, skipping directories that already contain output files.
 **Usage** :
 
 ```bash
 bash run_large_screen.sh -c CONFIG_FILE -l LIGAND_DIR -o OUTPUT_DIR -a AGGREGATE_OUTPUT_DIR [OPTIONS]
 ```
 **Options** : 
-- `-s START_FROM_DIR`: Start processing from this directory number.
+- **`-s START_FROM_DIR`** : Start processing from this directory number.
  
-- `--single-directory`: Treat `LIGAND_DIR` as a single directory.
+- **`--single-directory`** : Treat `LIGAND_DIR` as a single directory.
+
+
+---
+
 `summarize_virtual_screen.py`
 Summarizes docking results and generates images for top hits.
 **Usage** :
@@ -193,34 +210,28 @@ Summarizes docking results and generates images for top hits.
 python summarize_virtual_screen.py -d DIRECTORY -s SMILES_FILE [OPTIONS]
 ```
 **Options** : 
-- `-o`, `--output`: Path to the output summary file.
+- **`-g`** , ****`-g`** , `--generate_images`** : Enable image generation.
  
-- `-g`, `--generate_images`: Enable image generation.
+- **`-n`** , ****`-n`** , `--top_n`** : Number of top hits to generate images for.
  
-- `-n`, `--top_n`: Number of top hits to generate images for.
+- **`-i`** , ****`-i`** , `--image_dir`** : Directory to save images.
  
-- `-i`, `--image_dir`: Directory to save images.
- 
-- `-f`, `--figure_file`: Filename for the combined figure.
- 
-- `-v`, `--verbose`: Enable verbose output.
+- **`-f`** , ****`-f`** , `--figure_file`** : Filename for the combined figure.
+
+
+---
+
 
 ## Example Command 
 
 
 ```bash
-bash run_pipeline.sh \
+bash master.sh \
   -c conf.txt \
   -s data/zinc_smiles.txt \
   -l data/ligands \
   -o results/docking_outputs \
   -a results/aggregated_results \
-  -f results/docking_summary.csv \
-  -i results/images \
-  -g top_hits_figure.png \
-  -m 500 \
-  -p 500 \
-  -w 8 \
   -n 10 \
   -v \
   -d
@@ -228,39 +239,43 @@ bash run_pipeline.sh \
 
 This command will:
  
-1. **Convert SMILES to PDBQT** : Processes `zinc_smiles.txt`, splitting outputs into subdirectories with 500 molecules each, using 8 worker processes.
+1. **Convert SMILES to PDBQT** : Processes `zinc_smiles.txt` into PDBQT files.
  
-2. **Run Docking** : Performs virtual screening using AutoDock Vina, treating the ligand directory as a single directory.
+2. **Run Docking** : Performs virtual screening with AutoDock Vina, skipping already processed directories.
  
-3. **Summarize Results** : Generates a summary CSV, images for the top 10 hits, and a combined figure.
- 
-4. **Verbose Output** : Provides detailed output during execution.
+3. **Summarize Results** : Generates a summary CSV and images for the top 10 hits.
+
+
+---
+
 
 ## Notes 
- 
-- **Path Adjustments** : Ensure all paths in the scripts are correctly set to match your environment.
- 
-- **Provide Your Own Configuration File** : You must supply your own configuration file (`conf.txt`) and define the search space based on your protein pocket and structure file.
- 
-- **Font Availability** : Update the font path in `summarize_virtual_screen.py` or use a default font if necessary.
- 
-- **Permissions** : Ensure you have read/write permissions for all specified directories.
- 
-- **Atomic Symbols Exclusion** : The `smiles_to_pdbqt.py` script excludes molecules containing certain atomic symbols (e.g., Si, P, B, Fe). Modify the `OFF_LIMITS_SYMBOLS` list in the script if needed.
+
+- Ensure all paths in the scripts are correctly set to match your environment.
+
+- The pipeline is designed to resume interrupted runs by skipping directories that already contain output files.
+
+
+---
+
 
 ## Troubleshooting 
  
-- **Execution Errors** : Verify that all script paths and permissions are correct.
- 
-- **Module Not Found** : Ensure all Python dependencies are installed.
- 
 - **Font Errors** : Modify the font path or use the default font in `summarize_virtual_screen.py`.
  
-- **Connection of Scripts** : The pipeline is designed to run sequentially through the master script. If you wish to run individual scripts, ensure that the output directories and file names are consistent across scripts.
+- **Connection of Scripts** : Ensure output directories and file names are consistent across scripts.
+
+
+---
+
 
 ## License 
 
 This project is licensed under the MIT License.
+
+
+---
+
 
 ## Acknowledgments 
  
