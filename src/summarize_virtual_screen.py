@@ -34,7 +34,8 @@ def extract_docking_score(pdbqt_file, verbose=False):
                 try:
                     score = float(line.split()[3])  # The energy score is the 4th token
                 except (IndexError, ValueError):
-                    print(f"Warning: Could not parse docking score in file {pdbqt_file}")
+                    if verbose:
+                        print(f"Warning: Could not parse docking score in file {pdbqt_file}")
                 break
     return score
 
@@ -66,15 +67,11 @@ def smiles_to_2d_structure(smiles, output_image_name, label_text=None, score=Non
 
     # Draw the 2D structure as a PIL Image
     img = Draw.MolToImage(mol, size=(550, 500))
-
-    # Convert to RGBA so we can easily place text
     img = img.convert("RGBA")
     img = img.crop(img.getbbox())
 
-    # Create a Pillow drawing context
     draw = ImageDraw.Draw(img)
     try:
-        # Adjust font path as appropriate for your system
         font = ImageFont.truetype("/home/chutchins@uthouston.edu/fonts/Arial.TTF", size=50)
     except IOError:
         print("Arial font not found, using default font.")
@@ -85,7 +82,6 @@ def smiles_to_2d_structure(smiles, output_image_name, label_text=None, score=Non
         text_bbox = draw.textbbox((0, 0), text_label, font=font)
         text_width = text_bbox[2] - text_bbox[0]
         text_height = text_bbox[3] - text_bbox[1]
-        # Place the text slightly above the bottom-center
         position = ((img.width - text_width - 110) // 2, img.height - text_height - 80)
         draw.text(position, text_label, fill="black", font=font)
 
@@ -100,17 +96,16 @@ def create_combined_figure(image_paths, figure_file, top_n, verbose=False):
     """
     import math
 
-    # Determine a grid size for top_n images (e.g., up to 5 columns)
     cols = min(5, top_n)
     rows = math.ceil(top_n / cols)
 
     fig, axes = plt.subplots(rows, cols, figsize=(4, 1.875))
-    axes = axes.flatten()  # Flatten in case of multiple rows
+    axes = axes.flatten()
 
     for ax, img_path in zip(axes, image_paths):
         img = Image.open(img_path)
         ax.imshow(img)
-        ax.axis('off')  # Hide the axes
+        ax.axis('off')
 
     # Hide any remaining empty subplots
     for ax in axes[len(image_paths):]:
@@ -181,40 +176,47 @@ def summarize_docking_results(
     if verbose:
         print(f"Found {len(pdbqt_files)} files to parse.")
 
-    # Parallel parse: create a list of futures, show progress as they complete
-    parse_futures = []
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        for pdbqt_file in pdbqt_files:
-            # Submit each parse task
-            parse_futures.append(executor.submit(parse_pdbqt_file, pdbqt_file, verbose))
+    # ----------------------------------------------------------
+    # 1) Parse all PDBQT files in parallel, collecting results
+    #    in a dictionary mapping {zinc_id -> docking_score}.
+    #    We'll use a tqdm progress bar here.
+    # ----------------------------------------------------------
+    docking_scores = {}
+    with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+        parse_futures = [executor.submit(parse_pdbqt_file, pdbqt_file, verbose)
+                         for pdbqt_file in pdbqt_files]
 
-        results = []
-        # Use tqdm over the as_completed() iterator
-        for future in tqdm(concurrent.futures.as_completed(parse_futures),
-                           total=len(parse_futures),
-                           desc="Parsing PDBQT files"):
-            res = future.result()
-            results.append(res)
+        for future in tqdm(
+            concurrent.futures.as_completed(parse_futures),
+            total=len(parse_futures),
+            desc="Parsing PDBQT files"
+        ):
+            zinc_id, score = future.result()
+            docking_scores[zinc_id] = score
 
-    # Update DataFrame based on the parallel extraction results
-    for (zinc_id, docking_score) in results:
-        if docking_score is not None:
-            mask = (df['ID'] == zinc_id)
-            if mask.any():
-                df.loc[mask, 'DockingScore'] = docking_score
-            else:
-                if verbose:
-                    print(f"Warning: ZINC ID {zinc_id} not found in CSV.")
-        else:
-            if verbose:
-                print(f"Warning: No docking score found for {zinc_id}.")
+    # ----------------------------------------------------------
+    # 2) Update the DataFrame *once* at the end, rather than
+    #    row-by-row.
+    # ----------------------------------------------------------
+    if verbose:
+        print("Updating DataFrame with docking scores...")
+
+    # For faster lookups, convert 'ID' to the index if you haven't already
+    if 'ID' in df.columns:
+        df.set_index('ID', inplace=True)
+
+    # Map the docking_scores dict onto the DataFrame index
+    df['DockingScore'] = df.index.map(docking_scores)
+
+    # Reset the index if you prefer to keep 'ID' as a column
+    df.reset_index(inplace=True)
 
     # Save the updated DataFrame back to the CSV
     df.to_csv(csv_file, index=False)
     if verbose:
         print(f"Updated CSV saved to {csv_file}")
 
-    # If we want to generate images, filter for rows that have a DockingScore
+    # Optionally generate images for top hits
     if generate_images:
         df_with_scores = df.dropna(subset=['DockingScore'])
         df_sorted = df_with_scores.sort_values(by='DockingScore', ascending=True)
@@ -223,7 +225,6 @@ def summarize_docking_results(
         if not top_hits.empty:
             os.makedirs(image_dir, exist_ok=True)
 
-            # Build a list of dicts for parallel image generation
             hit_dicts = []
             for _, row in top_hits.iterrows():
                 hit_dicts.append({
@@ -233,21 +234,21 @@ def summarize_docking_results(
                     'image_dir': image_dir
                 })
 
-            # Generate images in parallel with a progress bar
             img_futures = []
             image_paths = []
             with concurrent.futures.ProcessPoolExecutor() as executor:
                 for hit in hit_dicts:
                     img_futures.append(executor.submit(generate_image_parallel, hit))
 
-                for future in tqdm(concurrent.futures.as_completed(img_futures),
-                                   total=len(img_futures),
-                                   desc="Generating images"):
+                for future in tqdm(
+                    concurrent.futures.as_completed(img_futures),
+                    total=len(img_futures),
+                    desc="Generating images"
+                ):
                     path = future.result()
                     if path:
                         image_paths.append(path)
 
-            # Now combine them into a single figure if we have any images
             if image_paths:
                 create_combined_figure(image_paths, figure_file, top_n, verbose=verbose)
 
@@ -312,7 +313,6 @@ def main():
         print(f"Error: Directory '{args.directory}' not found or not a directory.")
         sys.exit(1)
 
-    # Run the main function
     summarize_docking_results(
         csv_file=args.csv_file,
         directory=args.directory,
